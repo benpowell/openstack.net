@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Mime;
+using System.Threading;
 using System.Threading.Tasks;
 using JSIStudios.SimpleRESTServices.Client;
 using JSIStudios.SimpleRESTServices.Client.Json;
@@ -440,7 +441,30 @@ namespace net.openstack.Providers.Rackspace
             if (string.IsNullOrEmpty(requestSettings.UserAgent))
                 requestSettings.UserAgent = UserAgentGenerator.UserAgent;
 
-            var response = callback(absoluteUri, method, bodyStr, headers, queryStringParameter, requestSettings);
+
+            // this is a workaround for issue #333
+            // https://github.com/openstacknetsdk/openstack.net/issues/333
+            // http://stackoverflow.com/a/22976809/138304
+            //
+            // credit to @sharwell: https://github.com/sharwell/openstack.net/commit/2d4012720521b19cbf88d43b6450090295266428
+            T response;
+            try
+            {
+                response = callback(absoluteUri, method, bodyStr, headers, queryStringParameter, requestSettings);
+            }
+            catch (ProtocolViolationException)
+            {
+                var servicePoint = ServicePointManager.FindServicePoint(absoluteUri);
+                if (servicePoint.ProtocolVersion < HttpVersion.Version11)
+                {
+                    var maxIdleTime = servicePoint.MaxIdleTime;
+                    servicePoint.MaxIdleTime = 0;
+                    Thread.Sleep(1);
+                    servicePoint.MaxIdleTime = maxIdleTime;
+                }
+
+                response = callback(absoluteUri, method, bodyStr, headers, queryStringParameter, requestSettings);
+            }
 
             // on errors try again 1 time.
             if (response.StatusCode == HttpStatusCode.Unauthorized && !isRetry && !isTokenRequest)
@@ -547,7 +571,27 @@ namespace net.openstack.Providers.Rackspace
                 initialPosition = null;
             }
 
-            var response = RestService.Stream(absoluteUri, method, stream, chunkSize, maxReadLength, headers, queryStringParameter, requestSettings, progressUpdated);
+            Response response;
+            try
+            {
+                response = RestService.Stream(absoluteUri, method, stream, chunkSize, maxReadLength, headers, queryStringParameter, requestSettings, progressUpdated);
+            }
+            catch (ProtocolViolationException)
+            {
+                var servicePoint = ServicePointManager.FindServicePoint(absoluteUri);
+                if (servicePoint.ProtocolVersion < HttpVersion.Version11)
+                {
+                    // this is a workaround for issue #333
+                    // https://github.com/openstacknetsdk/openstack.net/issues/333
+                    // http://stackoverflow.com/a/22976809/138304
+                    var maxIdleTime = servicePoint.MaxIdleTime;
+                    servicePoint.MaxIdleTime = 0;
+                    Thread.Sleep(10);
+                    servicePoint.MaxIdleTime = maxIdleTime;
+                }
+
+                response = RestService.Stream(absoluteUri, method, stream, chunkSize, maxReadLength, headers, queryStringParameter, requestSettings, progressUpdated);
+            }
 
             // on errors try again 1 time.
             if (response.StatusCode == HttpStatusCode.Unauthorized && !isRetry && initialPosition != null)
