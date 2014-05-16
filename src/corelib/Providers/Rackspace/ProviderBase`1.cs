@@ -484,7 +484,7 @@ namespace net.openstack.Providers.Rackspace
         /// If the request fails due to an authorization failure, i.e. the <see cref="Response.StatusCode"/> is <see cref="HttpStatusCode.Unauthorized"/>,
         /// the request is attempted a second time.
         ///
-        /// <para>This method uses an HTTP request timeout of 4 hours.</para>
+        /// <para>This method uses an HTTP request timeout of 4 minutes.</para>
         ///
         /// <para>This method calls <see cref="IHttpResponseCodeValidator.Validate"/>, which results in a <see cref="ResponseException"/> if the request fails.</para>
         /// </remarks>
@@ -551,7 +551,7 @@ namespace net.openstack.Providers.Rackspace
             if (requestSettings == null)
                 requestSettings = BuildDefaultRequestSettings();
 
-            requestSettings.Timeout = TimeSpan.FromMilliseconds(14400000); // Need to pass this in.
+            requestSettings.Timeout = TimeSpan.FromMilliseconds(240000); // Need to pass this in.
 
             if (headers == null)
                 headers = new Dictionary<string, string>();
